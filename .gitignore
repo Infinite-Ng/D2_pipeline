@@ -1,0 +1,28 @@
+# ---- 敏感数据：绝不入库 ----
+# 探测输出：含业务数据 + storage_state.json（会话 cookie，等同凭据）
+probe_out/
+# 凭据与本地配置
+config.ini
+config.local.*
+.env
+*.secret
+credentials.*
+# 生成的报告（含业务数据）
+output/
+reports/
+*.xlsx
+
+# ---- Python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

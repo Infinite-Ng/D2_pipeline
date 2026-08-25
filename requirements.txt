@@ -1,0 +1,8 @@
+# 本项目的取数(urllib)、报告(自写 xlsx_min)、.eml 兜底全部用 Python 标准库，
+# 正常流程无需安装任何东西。
+#
+# 唯一可选依赖：
+pywin32>=306 ; sys_platform == "win32"   # M3 在 Outlook 草稿箱生成草稿；不装则自动回退 .eml
+
+# 备路浏览器方案才需要（主路 D2-REST 已确认在线，预计用不到）：
+# playwright>=1.44
