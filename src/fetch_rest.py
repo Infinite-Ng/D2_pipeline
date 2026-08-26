@@ -69,6 +69,28 @@ class D2Client:
             except Exception:  # noqa: BLE001
                 return e.code, ""
 
+    def _open(self, url: str, accept: str):
+        req = urllib.request.Request(url, method="GET", headers={
+            "Accept": accept, "User-Agent": "D2-pipeline/1", "Authorization": self._auth})
+        return self._opener.open(req, timeout=TIMEOUT)
+
+    def object_url(self, object_id: str, sub: str = "") -> str:
+        u = f"{self.base}/repositories/{urllib.parse.quote(self.repo)}/objects/{object_id}"
+        return f"{u}/{sub}" if sub else u
+
+    def get_json_url(self, url: str) -> dict | None:
+        """GET 一个完整 URL 的 JSON（只读）。失败返回 None。"""
+        try:
+            with self._open(url, "application/json") as r:
+                return json.loads(r.read().decode("utf-8", "replace"))
+        except Exception:  # noqa: BLE001
+            return None
+
+    def download(self, url: str, max_bytes: int | None = None) -> bytes:
+        """GET 二进制内容（只读）。抛异常由调用方处理。"""
+        with self._open(url, "*/*") as r:
+            return r.read() if max_bytes is None else r.read(max_bytes)
+
     def dql_page(self, query: str, page: int = 1, page_size: int = 200) -> list[dict]:
         """执行一页 DQL SELECT，返回该页的 properties 列表。出错抛异常。"""
         if not query.lstrip().lower().startswith("select"):

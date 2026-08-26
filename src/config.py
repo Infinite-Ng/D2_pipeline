@@ -24,6 +24,8 @@ class Settings:
     cover_weekend_on_monday: bool = True
     subject_prefix: str = "[D2 Daily]"
     report_title: str = "Documentum D2 Daily Intake"
+    attach_documents: bool = True          # --draft 时是否附带 D2 文档
+    attach_max_total_mb: float = 20.0       # 附件总大小上限（超出的列在正文、不附）
     # [email]
     send_from: str = ""
     recipients: list[str] = field(default_factory=list)
@@ -47,6 +49,12 @@ def load(path: str | Path | None = None) -> Settings:
     eml = cfg["email"] if cfg.has_section("email") else {}
     cover = cfg.getboolean("report", "cover_weekend_on_monday", fallback=True) \
         if cfg.has_section("report") else True
+    attach = cfg.getboolean("report", "attach_documents", fallback=True) \
+        if cfg.has_section("report") else True
+    try:
+        max_mb = float(rep.get("attach_max_total_mb", "20"))
+    except (TypeError, ValueError):
+        max_mb = 20.0
     return Settings(
         d2_host=d2.get("host", ""),
         d2_repo=d2.get("repo", ""),
@@ -55,6 +63,8 @@ def load(path: str | Path | None = None) -> Settings:
         cover_weekend_on_monday=cover,
         subject_prefix=rep.get("subject_prefix", "[D2 Daily]"),
         report_title=rep.get("report_title", "Documentum D2 Daily Intake"),
+        attach_documents=attach,
+        attach_max_total_mb=max_mb,
         send_from=eml.get("send_from", ""),
         recipients=_split(eml.get("recipients", "")),
     )

@@ -166,5 +166,20 @@ def yesterday_bounds_utc(now_local: datetime | None = None,
     return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
 
 
+def day_bounds_utc(y: int, m: int, d: int) -> tuple[datetime, datetime]:
+    """某个本地日期 [D 00:00, D+1 00:00) 的 UTC 边界，用于 --date=YYYY-MM-DD 补跑/测试。"""
+    start = datetime(y, m, d, tzinfo=LOCAL_TZ)
+    return start.astimezone(timezone.utc), (start + timedelta(days=1)).astimezone(timezone.utc)
+
+
+def last_n_days_bounds_utc(n: int, now_local: datetime | None = None) -> tuple[datetime, datetime]:
+    """[今天-N 天 00:00, 今天 00:00) 的 UTC 边界（本地时区计），用于 --days=N 测试/补跑。"""
+    if now_local is None:
+        now_local = datetime.now(LOCAL_TZ)
+    today0 = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = today0 - timedelta(days=max(1, n))
+    return start.astimezone(timezone.utc), today0.astimezone(timezone.utc)
+
+
 def in_range(item: Item, start_utc: datetime, end_utc: datetime) -> bool:
     return bool(item.date_sent_utc and start_utc <= item.date_sent_utc < end_utc)

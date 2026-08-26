@@ -130,6 +130,22 @@ I-2099-000001  Handle incoming E-COMM  1/2/2099, 7:47:57 AM   09A ADVANCE PUBLIC
 > 兜底：极少数刚到达的 `dormant` 任务 `task_subject` 短暂为空（几分钟后即填充）；`parsed_ok=False` 标记，
 > 需要时可用 `probe_api2.py` 验证过的链路 `workflow→dmi_package.r_component_id→业务文档` 取回。
 
+### 附件（可下载文档，M2.5）
+
+链路（M0d/M0e 实测确认，全部只读 GET）：
+
+```
+item.router_id → dmi_package.r_component_id → 业务文档(docmail，虚拟文档)
+              → vd-nodes 子节点(virtual-document-component) → 子文件 → GET /objects/{id}/content-media
+```
+
+要点：
+- 业务文档是 **docmail 虚拟文档**；其主内容只是一小段 htm 信函正文，**真正附件是子节点**（实测为 PDF，每个几百 KB）。
+- `dmi_package.r_component_id` 是 **repeating 属性**——DQL 必须显式点名，`select *` 不返回它（踩过坑）。
+- 子文件命名用其 `title`（常即真实文件名，含扩展名）。
+- content 下载：`GET /objects/{id}/content-media` → 200，直接回二进制（Basic Auth，无 ACS 跳转）。
+- `fetch_content.py` 按 `attach_max_total_mb` 累计封顶；超限的文件只在正文列出、不附（外部收件人 25MB 限制）。仅 `--draft` 时下载。
+
 ---
 
 ## 5. 「昨天」的口径（需你拍板）
@@ -167,6 +183,7 @@ I-2099-000001  Handle incoming E-COMM  1/2/2099, 7:47:57 AM   09A ADVANCE PUBLIC
 | M0c 数据模型 | ✅ `probe_api2.py` | ✅ **已完成**：字段映射定稿（task_subject 解析） |
 | M1 取数 | ✅ `fetch_rest.py` + `normalize.py` + `main.py` | ✅ **已完成**：单测 7/7，条数与界面对上 |
 | M2 报告 | ✅ `report.py` + `xlsx_min.py`（纯标准库 xlsx）+ `config.py` | ✅ **已完成**：English HTML + xlsx，离线用真实样本校验通过 |
+| M2.5 附件 | ✅ `fetch_content.py`（只读下载 D2 文档）| ✅ **代码完成**：docmail 虚拟文档→子文件(PDF)→附进草稿；解析离线校验；实下载待 `--draft` 试 |
 | M3 发信（草稿） | ✅ `send_outlook.py`（pywin32 草稿 + 标准库 .eml 兜底） | ✅ **代码完成**：.eml 路离线校验通过；Outlook 路待你装 pywin32 后试 |
 | **M4 定时**（← 当前） | 注册 Windows 任务计划 + 凭据入 keyring | 到点自动生成草稿；连续两个工作日稳定 |
 | M5 验收 | 切换为真正发送 + 对账 | 收件组收到、条数与 D2 界面一致 |
@@ -184,18 +201,22 @@ D2_pipeline/
 ├─ .gitignore             # 护住凭据/业务数据
 ├─ config.example.ini     # 配置模板（入库）
 ├─ config.ini             # 真实配置：收件人等（本地，gitignore）
+├─ d2conf.py              # 探测脚本共用：从 config.ini 读连接参数
 ├─ probe_recon.py         # M0a 无凭据侦察
 ├─ probe_api.py           # M0b 带凭据探测
 ├─ probe_api2.py          # M0c 业务对象链探测
+├─ probe_api3.py          # M0d 内容下载链路
+├─ probe_api4.py          # M0e 虚拟文档子附件
 ├─ probe_d2.py            # 备路浏览器探测（预计用不到）
 ├─ src/
-│  ├─ config.py           # 配置加载
-│  ├─ fetch_rest.py       # ✅ 只读 DQL 客户端 + 取 inbox
+│  ├─ config.py           # 配置加载（[d2]/[report]/[email]）
+│  ├─ fetch_rest.py       # ✅ 只读 DQL 客户端 + 取 inbox + 内容下载
+│  ├─ fetch_content.py    # ✅ 只读下载 docmail 虚拟文档的子附件(PDF 等)
 │  ├─ normalize.py        # ✅ task_subject 解析 + Item + 昨日边界
-│  ├─ report.py           # ✅ HTML 正文 + xlsx 明细
+│  ├─ report.py           # ✅ HTML 正文（含附件区）+ xlsx 明细
 │  ├─ xlsx_min.py         # ✅ 纯标准库 xlsx 写入器
 │  ├─ send_outlook.py     # ✅ Outlook 草稿(pywin32) + .eml 兜底；绝不自动发送
-│  └─ main.py             # ✅ 入口：取昨日→归一化→汇总→出报告
+│  └─ main.py             # ✅ 入口：取昨日→归一化→(下载附件)→汇总→报告→草稿
 ├─ tests/
 │  └─ test_normalize.py   # ✅ 解析/时区/边界单测 7/7
 └─ (probe_out/  output/   # 运行时生成，不入库)

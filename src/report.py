@@ -68,9 +68,48 @@ def window_label(meta: dict) -> str:
 _H = lambda s: (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))  # noqa: E731
 
 
-def build_html(items: list[Item], meta: dict) -> str:
+def _human_size(n: int) -> str:
+    f = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if f < 1024 or unit == "GB":
+            return f"{f:.0f} {unit}" if unit == "B" else f"{f:.1f} {unit}"
+        f /= 1024
+    return f"{f:.1f} GB"
+
+
+def _attachments_html(attachments) -> str:
+    """attachments: list[ItemAttachments]（鸭子类型：.identifier/.attached/.omitted/.error）。"""
+    if not attachments:
+        return ""
+    n_files = sum(len(ia.attached) for ia in attachments)
+    n_bytes = sum(a.size for ia in attachments for a in ia.attached)
+    omitted = [(ia.identifier, a) for ia in attachments for a in ia.omitted]
+    if not n_files and not omitted:
+        return ""
+    rows = []
+    for ia in attachments:
+        if not ia.attached:
+            continue
+        files = ", ".join(_H(a.filename) for a in ia.attached)
+        rows.append(f'<tr><td style="padding:3px 12px 3px 0;white-space:nowrap">'
+                    f'{_H(ia.identifier or "—")}</td><td style="padding:3px 0">{files}</td></tr>')
+    body = (f'<table style="border-collapse:collapse;font-size:12px">{"".join(rows)}</table>'
+            if rows else '<div style="font-size:12px;color:#6b7280">（无）</div>')
+    omit = ""
+    if omitted:
+        items = "; ".join(f'{_H(idn or "—")}: {_H(a.filename)} ({_human_size(a.size)})'
+                          for idn, a in omitted)
+        omit = (f'<p style="color:#b45309;font-size:12px;margin:8px 0 0">'
+                f'⚠ {len(omitted)} file(s) not attached (over the size cap) — download from D2: {items}</p>')
+    return (f'<h3 style="margin:18px 0 6px">Attachments '
+            f'<span style="font-weight:400;color:#6b7280;font-size:13px">'
+            f'({n_files} file(s), {_human_size(n_bytes)})</span></h3>{body}{omit}')
+
+
+def build_html(items: list[Item], meta: dict, attachments=None) -> str:
     s = summarize(items)
     win = window_label(meta)
+    att_html = _attachments_html(attachments)
 
     def kv_table(counter: Counter, head: str) -> str:
         if not counter:
@@ -130,6 +169,7 @@ def build_html(items: list[Item], meta: dict) -> str:
     <thead><tr>{detail_head}</tr></thead>
     <tbody>{"".join(detail_rows) or '<tr><td style="padding:8px">No items.</td></tr>'}</tbody>
   </table>
+  {att_html}
   {warn}
   <p style="color:#9ca3af;font-size:11px;margin-top:18px">
     Full detail (all columns) is in the attached spreadsheet. Automated report — do not reply.
@@ -166,12 +206,13 @@ def build_xlsx_sheets(items: list[Item], meta: dict) -> list:
 
 
 # --------------------------------------------------------------- entry
-def generate(items: list[Item], meta: dict, outdir: str = "output") -> tuple[str, str]:
+def generate(items: list[Item], meta: dict, outdir: str = "output",
+             attachments=None) -> tuple[str, str]:
     Path(outdir).mkdir(parents=True, exist_ok=True)
     stamp = (meta["window_end_local"] - timedelta(days=1)).strftime("%Y%m%d")
     base = Path(outdir) / f"D2_daily_{stamp}"
     html_path = f"{base}.html"
     xlsx_path = f"{base}.xlsx"
-    Path(html_path).write_text(build_html(items, meta), encoding="utf-8")
+    Path(html_path).write_text(build_html(items, meta, attachments), encoding="utf-8")
     xlsx_min.write_workbook(xlsx_path, build_xlsx_sheets(items, meta))
     return html_path, xlsx_path
